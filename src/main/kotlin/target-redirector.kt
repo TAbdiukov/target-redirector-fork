@@ -4,6 +4,7 @@
 #   Target Redirector Burp extension
 #
 #   Copyright (C) 2016-2018 Paul Taylor
+#   fork: Tim Abdiukov (2024)
 #
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -436,7 +437,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
 
 class UI() : ITab {
 
-    override public fun getTabCaption() = "Target Redirector"
+    override public fun getTabCaption() = "Target Redirector Fork"
     override public fun getUiComponent() = mainpanel
 
     val mainpanel = JPanel()
@@ -786,9 +787,9 @@ class BurpExtender : IBurpExtender, IExtensionStateListener {
         cb = callbacks
         val tab = UI()
 
-        cb.setExtensionName("Target Redirector")
+        cb.setExtensionName("Target Redirector Fork")
         cb.registerExtensionStateListener(this)
         cb.addSuiteTab(tab)
-        cb.printOutput("Target Redirector extension loaded")
+        cb.printOutput("Target Redirector Fork extension loaded")
     }
 }

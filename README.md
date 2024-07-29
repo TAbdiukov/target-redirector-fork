@@ -5,6 +5,9 @@
 [![Language](https://img.shields.io/badge/Lang-Kotlin-blue.svg)](https://kotlinlang.org)
 [![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](https://opensource.org/licenses/Apache-2.0)
 
+## Fork changes
+* Add checkboxes that define whether to "Redirect Scheme" and / or "Redirect Transport"
+
 #### Redirects requests from ALL Burp areas, not just the proxy
 
 Target Redirector is a Burp Suite Extension written in Kotlin, which redirects all Burp requests destined for a chosen target to a different target of your choice. The hostname/IP, port and protocol (HTTP/HTTPS) can all be configured to an alternative destination. You can choose to leave the HTTP Host header intact or update it if necessary. Other HTTP headers and the body remain unaffected.
