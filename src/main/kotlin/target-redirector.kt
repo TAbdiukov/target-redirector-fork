@@ -91,8 +91,8 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
                 result = -1
             } else {
                 result = instance_id
-            }          
-            
+            }
+
             listener.toggle_registration()
             return result
         }
@@ -116,8 +116,8 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
             fun toggle_registration() {
                 when {
                     instances.isEmpty()    && !registered       -> return
-                    instances.isEmpty() /* && registered */     -> deregister()   
-                    registered  /* && !instances.isEmpty() */   -> return         
+                    instances.isEmpty() /* && registered */     -> deregister()
+                    registered  /* && !instances.isEmpty() */   -> return
                     !registered /* && !instances.isEmpty() */   -> register()
                 }
             }
@@ -196,13 +196,21 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
         return "${proto}://${host}:${port}"
     }
 
+    val do_redirect_scheme = true
+    val do_redirect_transport = true
+
     fun replacement_url(): String {
-        val proto = when (replacement["protocol"]) {
-                PROTO_BOTH_IGNORE -> "[keep]"
-                PROTO_HTTP -> "http"
-                PROTO_HTTPS -> "https"
-                else -> "[keep]"
+        val proto =  if (do_redirect_scheme) {
+            when (replacement["protocol"]) {
+                    PROTO_BOTH_IGNORE -> "[keep]"
+                    PROTO_HTTP -> "http"
+                    PROTO_HTTPS -> "https"
+                    else -> "[keep]"
+            }
+        } else {
+            "[keep]"
         }
+
         val host = when (replacement["host_mode"]) {
                 HOST_PORT_IGNORE -> "[keep]"
                 HOST_PORT_SPECIFIED -> replacement["host"].toString()
@@ -242,7 +250,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
             view.toggle_dns_correction(true)
         } else {
             view.toggle_dns_correction(false)
-        }        
+        }
     }
 
     fun host_port_valid(host_port: Map<String, Any?>, field: String): Boolean {
@@ -260,8 +268,8 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
         if (
             host_port_valid(original, "host") &&
             host_port_valid(original, "port") &&
-            host_port_valid(replacement, "host") && 
-            host_port_valid(replacement, "port") && 
+            host_port_valid(replacement, "host") &&
+            host_port_valid(replacement, "port") &&
             getbyname(replacement["host"].toString(), true, true)
             ) {
                 toggle_dns_correction()
@@ -293,7 +301,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
         var requestInfo = BurpExtender.cb.helpers.analyzeRequest(messageInfo)
 
         for (old_header in requestInfo.headers) {
-            
+
             if (old_header_set) {
                 new_headers.add(old_header)
                 continue
@@ -304,7 +312,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
                     continue
                 } else {
                     if (host_header != HOST_HEADER_IGNORE) {
-                        new_host = get_new_host_header(old_host, original_hostname, messageInfo.httpService.host.toLowerCase())
+                        new_host = get_new_host_header(old_host, original_hostname, messageInfo.httpService.host.lowercase())
                         if (old_host == new_host) {
                             notification("Old host header is already set to ${new_host}, no change required")
                             return
@@ -341,7 +349,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
         if (
             when (original["host_mode"]) {
                     HOST_PORT_IGNORE -> true
-                    HOST_PORT_SPECIFIED -> if (messageInfo.httpService.host.toLowerCase() == original["host"].toString()) true else false
+                    HOST_PORT_SPECIFIED -> if (messageInfo.httpService.host.lowercase() == original["host"].toString()) true else false
                     HOST_PORT_REGEX -> if (original["host"].toString().toRegex(RegexOption.IGNORE_CASE).matches(messageInfo.httpService.host)) true else false
                     else -> false
             }
@@ -360,25 +368,30 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
         ) {
 
             when (replacement["host_mode"]) {
-                    HOST_PORT_IGNORE -> replacement_host = messageInfo.httpService.host.toLowerCase()
+                    HOST_PORT_IGNORE -> replacement_host = messageInfo.httpService.host.lowercase()
                     HOST_PORT_SPECIFIED -> replacement_host = replacement["host"].toString()
             }
             when (replacement["port_mode"]) {
                     HOST_PORT_IGNORE -> replacement_port = messageInfo.httpService.port.toString().toInt()
                     HOST_PORT_SPECIFIED -> replacement_port = replacement["port"].toString().toInt()
             }
-            when (replacement["protocol"]) {
-                    PROTO_BOTH_IGNORE -> replacement_protocol = messageInfo.httpService.protocol
-                    PROTO_HTTP -> replacement_protocol = "http"
-                    PROTO_HTTPS -> replacement_protocol = "https"
+
+            if (do_redirect_transport) {
+                when (replacement["protocol"]) {
+                        PROTO_BOTH_IGNORE -> replacement_protocol = messageInfo.httpService.protocol
+                        PROTO_HTTP -> replacement_protocol = "http"
+                        PROTO_HTTPS -> replacement_protocol = "https"
+                }
+            } else {
+                replacement_protocol = messageInfo.httpService.protocol
             }
 
-            val original_hostname = messageInfo.httpService.host.toLowerCase()
+            val original_hostname = messageInfo.httpService.host.lowercase()
 
             notification(
                 "> Target changed from ${messageInfo.httpService.protocol}://${messageInfo.httpService.host}:${messageInfo.httpService.port} to ${replacement_url()}"
             )
-            
+
             messageInfo.httpService = BurpExtender.cb.helpers.buildHttpService(
                 replacement_host,
                 replacement_port,
@@ -386,7 +399,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
             )
 
             host_header_set(messageInfo, original_hostname)
-            
+
         } else {
             notification("> Target not changed to ${replacement_url()}")
         }
@@ -447,7 +460,7 @@ class UI() : ITab {
                 "Without changing hostname/IP"
             )
 
-        val port_array = 
+        val port_array =
             if (original) arrayOf(
                 "specific port:",
                 "redirect any port",
@@ -504,7 +517,7 @@ class UI() : ITab {
 
             val data = mutableMapOf<String, Any>()
 
-            if (dropdown_host.selectedIndex == Redirector.HOST_PORT_SPECIFIED) text_host.text = text_host.text.toLowerCase()
+            if (dropdown_host.selectedIndex == Redirector.HOST_PORT_SPECIFIED) text_host.text = text_host.text.lowercase()
             else if (dropdown_host.selectedIndex == Redirector.HOST_PORT_IGNORE) text_host.text = ""
             if (dropdown_port.selectedIndex == Redirector.HOST_PORT_IGNORE) text_port.text = ""
 
@@ -577,6 +590,9 @@ class UI() : ITab {
 
     val cbox_dns_correction = JCheckBox("Invalid original hostname DNS correction")
 
+    val do_redirect_scheme = JCheckBox("Redirect scheme", true)
+    val do_redirect_transport = JCheckBox("Redirect transport", true)
+
     val redirect_button = JButton("Activate Redirection")
 
     fun redirect_button_pressed() {
@@ -588,11 +604,11 @@ class UI() : ITab {
                 redirect_panel_replacement.get_data()
             )
 
-        toggle_active( 
+        toggle_active(
             if (instance_id > -1) true else false
         )
     }
-    
+
     fun popup_input(text: String, item: String?) = JOptionPane.showInputDialog(
                                                     mainpanel,
                                                     text,
@@ -651,7 +667,7 @@ class UI() : ITab {
         mainpanel.border = BorderFactory.createEmptyBorder(20, 20, 20, 20)
 
         mainpanel.add(innerpanel)
-        
+
         innerpanel.add(subpanel)
         innerpanel.layout = BoxLayout(innerpanel, BoxLayout.Y_AXIS)
 
@@ -667,6 +683,9 @@ class UI() : ITab {
         redirect_panel_options.add(dropdown_hostheader)
         redirect_panel_options.add(text_hostheader)
         redirect_panel_options.add(cbox_dns_correction)
+
+        redirect_panel_options.add(do_redirect_scheme)
+        redirect_panel_options.add(do_redirect_transport)
 
         text_hostheader.setVisible(false)
 
@@ -731,9 +750,9 @@ class BurpExtender : IBurpExtender, IExtensionStateListener {
 
                 host_list.add(host)
 
-                if (backup == "") {               
+                if (backup == "") {
                     backup = config
-                } 
+                }
 
                 var snippet = "{\"enabled\":true,\"hostname\":\"" +
                                     host +
@@ -755,18 +774,18 @@ class BurpExtender : IBurpExtender, IExtensionStateListener {
                     }
                 }
             }
-        }    
+        }
     }
 
     override fun extensionUnloaded() {
         Dns_Json.remove()
     }
 
-    override fun registerExtenderCallbacks(callbacks: IBurpExtenderCallbacks) {       
-        
+    override fun registerExtenderCallbacks(callbacks: IBurpExtenderCallbacks) {
+
         cb = callbacks
         val tab = UI()
-        
+
         cb.setExtensionName("Target Redirector")
         cb.registerExtensionStateListener(this)
         cb.addSuiteTab(tab)
