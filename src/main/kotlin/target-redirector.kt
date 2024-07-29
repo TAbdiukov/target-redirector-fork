@@ -4,6 +4,7 @@
 #   Target Redirector Burp extension
 #
 #   Copyright (C) 2016-2018 Paul Taylor
+#   fork: Tim Abdiukov (2024)
 #
 
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,8 +39,7 @@ import javax.swing.JCheckBox
 import javax.swing.JComboBox
 import javax.swing.JOptionPane
 
-
-class Redirector(val id: Int, val view: UI, var host_header: Any?, var original: Map<String, Any?>, var replacement: Map<String, Any?>) {
+class Redirector(val id: Int, val view: UI, var host_header: Any?, var original: Map<String, Any?>, var replacement: Map<String, Any?>, var flags: Map<String, Boolean>) {
 
     companion object {
 
@@ -63,9 +63,9 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
             view.notification(message, "Redirector")
         }
 
-        fun add_instance(host_header: Any?, original_data: Map<String, Any?>, replacement_data: Map<String, Any?>) {
+        fun add_instance(host_header: Any?, original_data: Map<String, Any?>, replacement_data: Map<String, Any?>, flags: Map<String, Boolean>) {
             val id = instances.size
-            instances.add(Redirector(id, view, host_header, original_data, replacement_data))
+            instances.add(Redirector(id, view, host_header, original_data, replacement_data, flags))
             notification("Initialising new redirector #" + id + " (total " + instances.size + ")")
         }
 
@@ -74,12 +74,12 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
             notification("Removed redirector #" + id + " (new total " + instances.size + ")")
         }
 
-        fun instance_add_or_remove(view_arg: UI, host_header: Any?, original_data: Map<String, Any?>, replacement_data: Map<String, Any?>) : Int {
+        fun instance_add_or_remove(view_arg: UI, host_header: Any?, original_data: Map<String, Any?>, replacement_data: Map<String, Any?>, flags: Map<String, Boolean>) : Int {
 
             view = view_arg
 
             if (instances.isEmpty()) {
-                add_instance(host_header, original_data, replacement_data)
+                add_instance(host_header, original_data, replacement_data, flags)
             }
 
             val instance_id = instances.size - 1
@@ -174,6 +174,10 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
     var replacement_port = -1
     var replacement_protocol = ""
 
+    var do_redirect_scheme: Boolean = false
+    var do_redirect_transport: Boolean = false
+
+
     fun original_url(): String {
         val proto = when (original["protocol"]) {
                 PROTO_BOTH_IGNORE -> "[http,https]"
@@ -196,10 +200,9 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
         return "${proto}://${host}:${port}"
     }
 
-    val do_redirect_scheme = true
-    val do_redirect_transport = true
-
     fun replacement_url(): String {
+        do_redirect_scheme = flags["do_redirect_scheme"] ?: false
+        // notification("do_redirect_scheme: "+do_redirect_scheme.toString())
         val proto =  if (do_redirect_scheme) {
             when (replacement["protocol"]) {
                     PROTO_BOTH_IGNORE -> "[keep]"
@@ -376,6 +379,8 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
                     HOST_PORT_SPECIFIED -> replacement_port = replacement["port"].toString().toInt()
             }
 
+            do_redirect_transport = flags["do_redirect_transport"] ?: false
+            // notification("do_redirect_transport: "+do_redirect_transport.toString())
             if (do_redirect_transport) {
                 when (replacement["protocol"]) {
                         PROTO_BOTH_IGNORE -> replacement_protocol = messageInfo.httpService.protocol
@@ -436,7 +441,7 @@ class Redirector(val id: Int, val view: UI, var host_header: Any?, var original:
 
 class UI() : ITab {
 
-    override public fun getTabCaption() = "Target Redirector"
+    override public fun getTabCaption() = "Target Redirector Fork"
     override public fun getUiComponent() = mainpanel
 
     val mainpanel = JPanel()
@@ -530,12 +535,23 @@ class UI() : ITab {
             return data
         }
 
+        fun get_flags(): Map<String, Boolean> {
+            val data = mutableMapOf<String, Boolean>()
+
+            data["do_redirect_scheme"] = do_redirect_scheme_jcheckbox.isSelected
+            data["do_redirect_transport"] = do_redirect_transport_jcheckbox.isSelected
+
+            return data
+        }
+
         fun toggle_lock(locked: Boolean) {
             text_host.setEditable(locked)
             text_port.setEditable(locked)
             dropdown_proto.setEnabled(locked)
             dropdown_host.setEnabled(locked)
             dropdown_port.setEnabled(locked)
+            do_redirect_scheme_jcheckbox.setEnabled(locked)
+            do_redirect_transport_jcheckbox.setEnabled(locked)
         }
     }
 
@@ -590,8 +606,8 @@ class UI() : ITab {
 
     val cbox_dns_correction = JCheckBox("Invalid original hostname DNS correction")
 
-    val do_redirect_scheme = JCheckBox("Redirect scheme", true)
-    val do_redirect_transport = JCheckBox("Redirect transport", true)
+    val do_redirect_scheme_jcheckbox = JCheckBox("Redirect scheme", true)
+    val do_redirect_transport_jcheckbox = JCheckBox("Redirect transport", true)
 
     val redirect_button = JButton("Activate Redirection")
 
@@ -601,7 +617,8 @@ class UI() : ITab {
                 this,
                 dropdown_hostheader_get_data(),
                 redirect_panel_original.get_data(),
-                redirect_panel_replacement.get_data()
+                redirect_panel_replacement.get_data(),
+                redirect_panel_replacement.get_flags()
             )
 
         toggle_active(
@@ -684,8 +701,8 @@ class UI() : ITab {
         redirect_panel_options.add(text_hostheader)
         redirect_panel_options.add(cbox_dns_correction)
 
-        redirect_panel_options.add(do_redirect_scheme)
-        redirect_panel_options.add(do_redirect_transport)
+        redirect_panel_options.add(do_redirect_scheme_jcheckbox)
+        redirect_panel_options.add(do_redirect_transport_jcheckbox)
 
         text_hostheader.setVisible(false)
 
@@ -786,9 +803,9 @@ class BurpExtender : IBurpExtender, IExtensionStateListener {
         cb = callbacks
         val tab = UI()
 
-        cb.setExtensionName("Target Redirector")
+        cb.setExtensionName("Target Redirector Fork")
         cb.registerExtensionStateListener(this)
         cb.addSuiteTab(tab)
-        cb.printOutput("Target Redirector extension loaded")
+        cb.printOutput("Target Redirector Fork extension loaded")
     }
 }
